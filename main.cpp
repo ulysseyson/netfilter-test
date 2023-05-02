@@ -8,6 +8,18 @@
 
 #include <libnetfilter_queue/libnetfilter_queue.h>
 
+#include <string>
+using namespace std;
+
+// don't know how to give parameter to cb function.
+// set global variable
+string host;
+
+void usage(){
+    printf("syntax : netfilter-test <host>\n");
+    printf("sample : netfilter-test test.gilgil.net\n");
+}
+
 void dump(unsigned char* buf, int size) {
 	int i;
 	for (i = 0; i < size; i++) {
@@ -17,7 +29,9 @@ void dump(unsigned char* buf, int size) {
 	}
 	printf("\n");
 }
-
+void filter(unsigned char* buf){
+	printf("%c", buf[0]);
+}
 /* returns packet id */
 static u_int32_t print_pkt (struct nfq_data *tb)
 {
@@ -68,6 +82,7 @@ static u_int32_t print_pkt (struct nfq_data *tb)
 	if (ret >= 0)
         printf("\n");
         dump(data, ret);
+		filter(data);
 		printf("payload_len=%d\n", ret);
 
 	fputc('\n', stdout);
@@ -84,8 +99,13 @@ static int cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
 	return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
 }
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
+    if(argc != 2){
+        usage();
+    }
+    host = argv[1];
+
 	struct nfq_handle *h;
 	struct nfq_q_handle *qh;
 	struct nfnl_handle *nh;
