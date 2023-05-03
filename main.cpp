@@ -90,7 +90,7 @@ bool filter(unsigned char* buf, int size){
 
 								int host_equal = hostcheck(buf);
 								if(!host_equal){
-									printf("this is bad host!!\n");
+									printf("\n\n-----------------------\nthis is bad host!!\n");
 									return true;
 								}
 								else return false;
