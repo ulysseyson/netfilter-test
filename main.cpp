@@ -29,7 +29,19 @@ void dump(unsigned char* buf, int size) {
 	}
 	printf("\n");
 }
-void filter(unsigned char* buf, int size){
+
+int hostcheck(unsigned char* buf){
+	printf("%s", host.c_str());
+	// return 0 if host is not same as buf
+	for(int i = 0; i < host.size(); i++){
+		if(host[i] != buf[i]){
+			return 1;
+		}
+	}
+	return 0;
+}
+
+bool filter(unsigned char* buf, int size){
 	int ip_header_len = (buf[0] & 0xf )* 4;
 	buf += ip_header_len;
 	size -= ip_header_len;
@@ -44,14 +56,52 @@ void filter(unsigned char* buf, int size){
 
 	if(tcp_dst_port == 80) {
 		printf("http checked\n");
+		int tcp_header_len = 20;
+		buf += tcp_header_len;
+		size -= tcp_header_len;
 
-		for (int i = 0; i < size; i++) {
-			if (i != 0 && i % 16 == 0)
+		char H = 0x48;
+		char o = 0x6f;
+		char s = 0x73;
+		char t = 0x74;
+		char _ = 0x3a;
+
+		int check = 0;
+		printf("http protocol packet\n");
+		for(int j=0;j<size;j++){
+			if(j%16 == 0){
 				printf("\n");
-			printf("%02X ", buf[i]);
+			}
+			printf("%02x ", buf[j]);
+		}
+		for (int i = 0; i < size; i++) {
+
+			if(check == 0 && buf[i] == H){
+				// printf("HHHHHHH\n");
+				if(buf[i+1] == o){
+					// printf("ooooooo\n");
+					if(buf[i+2] == s){
+						// printf("ssssss\n");
+						if(buf[i+3] == t){
+							// printf("tttttt\n");
+							if(buf[i+4] == _){
+								buf += (i+6);
+								size -= (i+6);
+
+								int host_equal = hostcheck(buf);
+								if(!host_equal){
+									printf("this is bad host!!\n");
+									return true;
+								}
+								else return false;
+							}
+						}
+					}
+				}
+			}
 		}
 	}
-
+	return false;
 }
 /* returns packet id */
 static u_int32_t print_pkt (struct nfq_data *tb)
@@ -70,54 +120,37 @@ static u_int32_t print_pkt (struct nfq_data *tb)
 			ntohs(ph->hw_protocol), ph->hook, id);
 	}
 
-	// hwph = nfq_get_packet_hw(tb);
-	// if (hwph) {
-	// 	int i, hlen = ntohs(hwph->hw_addrlen);
+	return id;
+}
 
-	// 	printf("hw_src_addr=");
-	// 	for (i = 0; i < hlen-1; i++)
-	// 		printf("%02x:", hwph->hw_addr[i]);
-	// 	printf("%02x ", hwph->hw_addr[hlen-1]);
-	// }
-
-	// mark = nfq_get_nfmark(tb);
-	// if (mark)
-	// 	printf("mark=%u ", mark);
-
-	// ifi = nfq_get_indev(tb);
-	// if (ifi)
-	// 	printf("indev=%u ", ifi);
-
-	// ifi = nfq_get_outdev(tb);
-	// if (ifi)
-	// 	printf("outdev=%u ", ifi);
-	// ifi = nfq_get_physindev(tb);
-	// if (ifi)
-	// 	printf("physindev=%u ", ifi);
-
-	// ifi = nfq_get_physoutdev(tb);
-	// if (ifi)
-	// 	printf("physoutdev=%u ", ifi);
+static bool filter_pkt (struct nfq_data *tb){
+	int id = 0;
+	struct nfqnl_msg_packet_hdr *ph;
+	struct nfqnl_msg_packet_hw *hwph;
+	u_int32_t mark,ifi;
+	int ret;
+	unsigned char *data;
 
 	ret = nfq_get_payload(tb, &data);
 	if (ret >= 0)
         printf("\n");
         // dump(data, ret);
-		filter(data, ret);
+		bool is_filtered = filter(data, ret);
 		printf("payload_len=%d\n", ret);
-
-	fputc('\n', stdout);
-
-	return id;
+	return is_filtered;
 }
-
 
 static int cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
 	      struct nfq_data *nfa, void *data)
 {
 	u_int32_t id = print_pkt(nfa);
+	int is_filtered = filter_pkt(nfa);
 	printf("entering callback\n");
-	return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
+	if(is_filtered){
+		printf("fbi warning. pls go out.\n");
+		return nfq_set_verdict(qh, id, NF_DROP, 0, NULL);
+	}
+	else return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
 }
 
 int main(int argc, char** argv)
