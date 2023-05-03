@@ -5,10 +5,10 @@
 #include <linux/types.h>
 #include <linux/netfilter.h>		/* for NF_ACCEPT */
 #include <errno.h>
+#include <string>
 
 #include <libnetfilter_queue/libnetfilter_queue.h>
 
-#include <string>
 using namespace std;
 
 // don't know how to give parameter to cb function.
@@ -29,8 +29,29 @@ void dump(unsigned char* buf, int size) {
 	}
 	printf("\n");
 }
-void filter(unsigned char* buf){
-	printf("%c", buf[0]);
+void filter(unsigned char* buf, int size){
+	int ip_header_len = (buf[0] & 0xf )* 4;
+	buf += ip_header_len;
+	size -= ip_header_len;
+	printf("\nremove ip header\n");
+	printf("ip header len %d", ip_header_len);
+	printf("\n");
+
+	// check tcp port
+	int tcp_dst_port = buf[2] * 256 + buf[3];
+	
+	printf("\ntcp dst port is %d\n", tcp_dst_port);
+
+	if(tcp_dst_port == 80) {
+		printf("http checked\n");
+
+		for (int i = 0; i < size; i++) {
+			if (i != 0 && i % 16 == 0)
+				printf("\n");
+			printf("%02X ", buf[i]);
+		}
+	}
+
 }
 /* returns packet id */
 static u_int32_t print_pkt (struct nfq_data *tb)
@@ -49,40 +70,40 @@ static u_int32_t print_pkt (struct nfq_data *tb)
 			ntohs(ph->hw_protocol), ph->hook, id);
 	}
 
-	hwph = nfq_get_packet_hw(tb);
-	if (hwph) {
-		int i, hlen = ntohs(hwph->hw_addrlen);
+	// hwph = nfq_get_packet_hw(tb);
+	// if (hwph) {
+	// 	int i, hlen = ntohs(hwph->hw_addrlen);
 
-		printf("hw_src_addr=");
-		for (i = 0; i < hlen-1; i++)
-			printf("%02x:", hwph->hw_addr[i]);
-		printf("%02x ", hwph->hw_addr[hlen-1]);
-	}
+	// 	printf("hw_src_addr=");
+	// 	for (i = 0; i < hlen-1; i++)
+	// 		printf("%02x:", hwph->hw_addr[i]);
+	// 	printf("%02x ", hwph->hw_addr[hlen-1]);
+	// }
 
-	mark = nfq_get_nfmark(tb);
-	if (mark)
-		printf("mark=%u ", mark);
+	// mark = nfq_get_nfmark(tb);
+	// if (mark)
+	// 	printf("mark=%u ", mark);
 
-	ifi = nfq_get_indev(tb);
-	if (ifi)
-		printf("indev=%u ", ifi);
+	// ifi = nfq_get_indev(tb);
+	// if (ifi)
+	// 	printf("indev=%u ", ifi);
 
-	ifi = nfq_get_outdev(tb);
-	if (ifi)
-		printf("outdev=%u ", ifi);
-	ifi = nfq_get_physindev(tb);
-	if (ifi)
-		printf("physindev=%u ", ifi);
+	// ifi = nfq_get_outdev(tb);
+	// if (ifi)
+	// 	printf("outdev=%u ", ifi);
+	// ifi = nfq_get_physindev(tb);
+	// if (ifi)
+	// 	printf("physindev=%u ", ifi);
 
-	ifi = nfq_get_physoutdev(tb);
-	if (ifi)
-		printf("physoutdev=%u ", ifi);
+	// ifi = nfq_get_physoutdev(tb);
+	// if (ifi)
+	// 	printf("physoutdev=%u ", ifi);
 
 	ret = nfq_get_payload(tb, &data);
 	if (ret >= 0)
         printf("\n");
-        dump(data, ret);
-		filter(data);
+        // dump(data, ret);
+		filter(data, ret);
 		printf("payload_len=%d\n", ret);
 
 	fputc('\n', stdout);
